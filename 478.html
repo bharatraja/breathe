@@ -150,6 +150,9 @@
     <button id="resume" disabled>Resume</button>
     <button id="stop" disabled>Stop</button>
   </div>
+  <audio id="silent-audio" loop style="display:none">
+    <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" type="audio/wav">
+  </audio>
   <script>
     // Populate dropdowns
     function populateSelect(id, min, max, selected) {
@@ -317,11 +320,37 @@
       if (timerInterval) clearInterval(timerInterval);
       mainTimer.textContent = formatTime(totalMin * 60);
     }
+    // Wake Lock and iOS fallback
+    let wakeLock = null;
+    const silentAudio = document.getElementById('silent-audio');
+    async function requestWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+        } catch (e) {
+          // fallback below
+        }
+      }
+      // iOS fallback: play silent audio
+      if (silentAudio && silentAudio.paused) {
+        try { silentAudio.play(); } catch (e) {}
+      }
+    }
+    async function releaseWakeLock() {
+      if (wakeLock) {
+        try { await wakeLock.release(); } catch (e) {}
+        wakeLock = null;
+      }
+      if (silentAudio && !silentAudio.paused) {
+        try { silentAudio.pause(); silentAudio.currentTime = 0; } catch (e) {}
+      }
+    }
     function stopAll() {
       running = false;
       paused = false;
       stopTimer();
       stopBreathCycle();
+      releaseWakeLock();
       document.getElementById('start').disabled = false;
       document.getElementById('pause').disabled = true;
       document.getElementById('resume').disabled = true;
@@ -337,6 +366,7 @@
       document.getElementById('resume').disabled = true;
       document.getElementById('stop').disabled = false;
       setBall(0);
+      requestWakeLock();
       startBreathCycle();
       if (totalMin > 0) startTimer();
       else mainTimer.textContent = '00:00';
