@@ -116,11 +116,18 @@
 <body>
   <div class="controls">
     <div class="control-row">
+      <label for="type">Type</label>
+      <select id="type">
+        <option value="478">4-7-8</option>
+        <option value="box">Box Breathing</option>
+      </select>
+    </div>
+    <div class="control-row">
       <label for="inhale">Inhale</label>
       <select id="inhale"></select>
       <span>sec</span>
     </div>
-    <div class="control-row">
+    <div class="control-row" id="hold1-row">
       <label for="hold">Hold</label>
       <select id="hold"></select>
       <span>sec</span>
@@ -128,6 +135,11 @@
     <div class="control-row">
       <label for="exhale">Exhale</label>
       <select id="exhale"></select>
+      <span>sec</span>
+    </div>
+    <div class="control-row" id="hold2-row" style="display:none">
+      <label for="hold2">Hold</label>
+      <select id="hold2"></select>
       <span>sec</span>
     </div>
     <div class="control-row">
@@ -138,9 +150,9 @@
   </div>
   <div class="timer" id="main-timer">05:00</div>
   <div class="phase-label" id="phase-label">Ready</div>
-  <div class="triangle-container">
-    <svg width="300" height="260">
-      <polygon points="150,20 280,240 20,240" fill="none" stroke="#333" stroke-width="3" />
+  <div class="triangle-container" id="shape-container">
+    <svg id="shape-svg" width="300" height="260">
+      <polygon id="shape-polygon" points="150,20 280,240 20,240" fill="none" stroke="#333" stroke-width="3" />
     </svg>
     <div class="ball" id="ball" style="left: 135px; top: 210px;"></div>
   </div>
@@ -169,6 +181,8 @@
     populateSelect('hold', 0, 60, 7);
     populateSelect('exhale', 0, 60, 8);
     populateSelect('timer', 0, 60, 5);
+    // Add Hold2 dropdown
+    populateSelect('hold2', 0, 60, 4);
 
     // Triangle points
     const A = {x: 150, y: 20}; // top
@@ -268,14 +282,86 @@
       else if (phaseName === 'Hold') playContinuousTone(659.25); // E5
       else if (phaseName === 'Exhale') playContinuousTone(392.00); // G4
     }
+    // Type switching logic
+    const typeSelect = document.getElementById('type');
+    const hold1Row = document.getElementById('hold1-row');
+    const hold2Row = document.getElementById('hold2-row');
+    const shapeSvg = document.getElementById('shape-svg');
+    const shapePolygon = document.getElementById('shape-polygon');
+    let boxMode = false;
+    typeSelect.onchange = function() {
+      if (typeSelect.value === 'box') {
+        hold2Row.style.display = '';
+        hold1Row.querySelector('label').textContent = 'Hold';
+        boxMode = true;
+        // Draw square
+        shapePolygon.setAttribute('points', '40,40 260,40 260,220 40,220');
+        // Set ball to square start position
+        setBallSquare(0, {x:40,y:220}, {x:40,y:40}, {x:260,y:40}, {x:260,y:220});
+      } else {
+        hold2Row.style.display = 'none';
+        hold1Row.querySelector('label').textContent = 'Hold';
+        boxMode = false;
+        // Draw triangle
+        shapePolygon.setAttribute('points', '150,20 280,240 20,240');
+        // Set ball to triangle start position
+        setBall(0);
+      }
+      setInitialDurations();
+    };
+    function setInitialDurations() {
+      if (typeSelect.value === 'box') {
+        document.getElementById('inhale').value = 4;
+        document.getElementById('hold').value = 4;
+        document.getElementById('exhale').value = 4;
+        document.getElementById('hold2').value = 4;
+      } else {
+        document.getElementById('inhale').value = 4;
+        document.getElementById('hold').value = 7;
+        document.getElementById('exhale').value = 8;
+      }
+    }
+    // Set initial durations on load
+    setInitialDurations();
     function startBreathCycle() {
       phaseOrder = [];
       phaseNames = [];
-      if (inhaleSec > 0) { phaseOrder.push([C, A, inhaleSec]); phaseNames.push('Inhale'); }
-      if (holdSec > 0) { phaseOrder.push([A, B, holdSec]); phaseNames.push('Hold'); }
-      if (exhaleSec > 0) { phaseOrder.push([B, C, exhaleSec]); phaseNames.push('Exhale'); }
+      if (typeSelect.value === 'box') {
+        // Square: Inhale (left->top), Hold1 (top->right), Exhale (right->bottom), Hold2 (bottom->left)
+        const S1 = {x: 40, y: 220}; // bottom-left
+        const S2 = {x: 40, y: 40};  // top-left
+        const S3 = {x: 260, y: 40}; // top-right
+        const S4 = {x: 260, y: 220}; // bottom-right
+        let inhale = parseInt(document.getElementById('inhale').value);
+        let hold1 = parseInt(document.getElementById('hold').value);
+        let exhale = parseInt(document.getElementById('exhale').value);
+        let hold2 = parseInt(document.getElementById('hold2').value);
+        if (inhale > 0) { phaseOrder.push([S1, S2, inhale]); phaseNames.push('Inhale'); }
+        if (hold1 > 0) { phaseOrder.push([S2, S3, hold1]); phaseNames.push('Hold'); }
+        if (exhale > 0) { phaseOrder.push([S3, S4, exhale]); phaseNames.push('Exhale'); }
+        if (hold2 > 0) { phaseOrder.push([S4, S1, hold2]); phaseNames.push('Hold'); }
+        setBallSquare(0, S1, S2, S3, S4);
+      } else {
+        // Triangle: Inhale (C->A), Hold (A->B), Exhale (B->C)
+        if (inhaleSec > 0) { phaseOrder.push([C, A, inhaleSec]); phaseNames.push('Inhale'); }
+        if (holdSec > 0) { phaseOrder.push([A, B, holdSec]); phaseNames.push('Hold'); }
+        if (exhaleSec > 0) { phaseOrder.push([B, C, exhaleSec]); phaseNames.push('Exhale'); }
+        setBall(0);
+      }
       phase = 0;
       nextPhase();
+    }
+    // Helper for square: set ball to start
+    function setBallSquare(pos, S1, S2, S3, S4) {
+      // pos: 0=start (S1), 1=S2, 2=S3, 3=S4
+      let x, y;
+      if (pos === 0) { x = S1.x; y = S1.y; }
+      else if (pos === 1) { x = S2.x; y = S2.y; }
+      else if (pos === 2) { x = S3.x; y = S3.y; }
+      else if (pos === 3) { x = S4.x; y = S4.y; }
+      else { x = S1.x; y = S1.y; }
+      ball.style.left = (x - 15) + 'px';
+      ball.style.top = (y - 15) + 'px';
     }
     function nextPhase() {
       if (!running || paused) return;
