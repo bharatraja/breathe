@@ -108,9 +108,7 @@
         <button id="resume" disabled>Resume</button>
         <button id="stop" disabled>Stop</button>
     </div>
-    <audio id="sound-inhale" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b6b7b6b2.mp3"></audio>
-    <audio id="sound-hold" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b6b7b6b3.mp3"></audio>
-    <audio id="sound-exhale" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b6b7b6b4.mp3"></audio>
+    <!-- Meditative bell sounds will be generated using Web Audio API -->
     <script>
         // Populate dropdowns
         function populateSelect(id, min, max, selected) {
@@ -126,7 +124,7 @@
         populateSelect('inhale', 0, 60, 4);
         populateSelect('hold', 0, 60, 7);
         populateSelect('exhale', 0, 60, 8);
-        populateSelect('timer', 0, 60, 0);
+    populateSelect('timer', 0, 60, 5);
 
         // Triangle points
         const A = {x: 150, y: 20}; // top
@@ -135,9 +133,46 @@
         const ball = document.getElementById('ball');
         const phaseLabel = document.getElementById('phase-label');
         const mainTimer = document.getElementById('main-timer');
-        const soundInhale = document.getElementById('sound-inhale');
-        const soundHold = document.getElementById('sound-hold');
-        const soundExhale = document.getElementById('sound-exhale');
+        // Web Audio API context for bell sounds
+        let audioCtx = null;
+        function getAudioCtx() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            return audioCtx;
+        }
+
+        // Continuous tone generator for each phase
+        let phaseOsc = null, phaseGain = null;
+        function playContinuousTone(frequency = 440) {
+            stopAllSounds();
+            const ctx = getAudioCtx();
+            const now = ctx.currentTime;
+            phaseOsc = ctx.createOscillator();
+            phaseOsc.type = 'sine';
+            phaseOsc.frequency.value = frequency;
+            phaseGain = ctx.createGain();
+            phaseGain.gain.setValueAtTime(0, now);
+            phaseGain.gain.linearRampToValueAtTime(0.25, now + 0.1); // gentle fade in
+            phaseOsc.connect(phaseGain);
+            phaseGain.connect(ctx.destination);
+            phaseOsc.start(now);
+        }
+
+        function stopAllSounds() {
+            if (phaseOsc) {
+                try {
+                    const ctx = getAudioCtx();
+                    const now = ctx.currentTime;
+                    phaseGain.gain.cancelScheduledValues(now);
+                    phaseGain.gain.setValueAtTime(phaseGain.gain.value, now);
+                    phaseGain.gain.linearRampToValueAtTime(0.0001, now + 0.2); // fade out
+                    phaseOsc.stop(now + 0.2);
+                } catch (e) {}
+                phaseOsc = null;
+                phaseGain = null;
+            }
+        }
         let inhaleSec = 4, holdSec = 7, exhaleSec = 8, totalMin = 0;
         let timerInterval = null, phaseTimeout = null, totalTimeLeft = 0, running = false, paused = false;
         let phase = 0, phaseTimeLeft = 0, phaseOrder = [], phaseSounds = [], phaseNames = [];
@@ -191,21 +226,21 @@
             if (ballAnimFrame) cancelAnimationFrame(ballAnimFrame);
         }
 
-        function playSound(audio) {
-            audio.currentTime = 0;
-            audio.play();
-        }
-        function stopAllSounds() {
-            [soundInhale, soundHold, soundExhale].forEach(a => { a.pause(); a.currentTime = 0; });
+
+        // Play continuous tone for each phase
+        function playSound(phaseName) {
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            if (phaseName === 'Inhale') playContinuousTone(523.25); // C5
+            else if (phaseName === 'Hold') playContinuousTone(659.25); // E5
+            else if (phaseName === 'Exhale') playContinuousTone(392.00); // G4
         }
 
         function startBreathCycle() {
             phaseOrder = [];
-            phaseSounds = [];
             phaseNames = [];
-            if (inhaleSec > 0) { phaseOrder.push([C, A, inhaleSec]); phaseSounds.push(soundInhale); phaseNames.push('Inhale'); }
-            if (holdSec > 0) { phaseOrder.push([A, B, holdSec]); phaseSounds.push(soundHold); phaseNames.push('Hold'); }
-            if (exhaleSec > 0) { phaseOrder.push([B, C, exhaleSec]); phaseSounds.push(soundExhale); phaseNames.push('Exhale'); }
+            if (inhaleSec > 0) { phaseOrder.push([C, A, inhaleSec]); phaseNames.push('Inhale'); }
+            if (holdSec > 0) { phaseOrder.push([A, B, holdSec]); phaseNames.push('Hold'); }
+            if (exhaleSec > 0) { phaseOrder.push([B, C, exhaleSec]); phaseNames.push('Exhale'); }
             phase = 0;
             nextPhase();
         }
@@ -214,8 +249,9 @@
             if (!running || paused) return;
             if (phase >= phaseOrder.length) phase = 0;
             const [from, to, duration] = phaseOrder[phase];
-            phaseLabel.textContent = phaseNames[phase];
-            playSound(phaseSounds[phase]);
+            const phaseName = phaseNames[phase];
+            phaseLabel.textContent = phaseName;
+            playSound(phaseName);
             phaseStartTime = Date.now();
             phaseDuration = duration;
             animateBall(from, to, duration, () => {
@@ -320,7 +356,7 @@
 
         // Set initial ball position
         setBall(0);
-        mainTimer.textContent = formatTime(0);
+    mainTimer.textContent = formatTime(5 * 60);
     </script>
 </body>
 </html>
