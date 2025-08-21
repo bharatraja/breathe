@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meditative Breathing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation; /* Prevents double-tap zoom on mobile */
+        }
+        /* Custom focus ring for better accessibility and aesthetics */
+        .custom-focus-ring:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.6);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-200 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-6 md:p-8 space-y-6 border border-slate-700">
+        
+        <header class="text-center">
+            <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-blue-500">Mindful Breath</h1>
+            <p class="text-slate-400 mt-1">Find your calm, one breath at a time.</p>
+        </header>
+
+        <!-- Animation Canvas -->
+        <div class="relative w-full aspect-square flex items-center justify-center">
+            <canvas id="animationCanvas" class="w-full h-full"></canvas>
+        </div>
+
+        <!-- Timer Display -->
+        <div id="timerDisplay" class="text-center text-6xl font-mono font-bold tracking-tighter text-slate-100 py-2 bg-slate-700/50 rounded-lg">
+            00:00
+        </div>
+
+        <!-- Settings Controls -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="space-y-1">
+                <label for="inhale" class="text-sm font-medium text-teal-300">Inhale (s)</label>
+                <select id="inhale" class="w-full bg-slate-700 border-slate-600 rounded-md p-2 custom-focus-ring">
+                    <!-- Options will be populated by JS -->
+                </select>
+            </div>
+            <div class="space-y-1">
+                <label for="hold" class="text-sm font-medium text-blue-300">Hold (s)</label>
+                <select id="hold" class="w-full bg-slate-700 border-slate-600 rounded-md p-2 custom-focus-ring">
+                    <!-- Options will be populated by JS -->
+                </select>
+            </div>
+            <div class="space-y-1">
+                <label for="exhale" class="text-sm font-medium text-indigo-300">Exhale (s)</label>
+                <select id="exhale" class="w-full bg-slate-700 border-slate-600 rounded-md p-2 custom-focus-ring">
+                    <!-- Options will be populated by JS -->
+                </select>
+            </div>
+        </div>
+        
+        <div class="space-y-1">
+            <label for="duration" class="text-sm font-medium text-slate-300">Total Duration (min)</label>
+            <select id="duration" class="w-full bg-slate-700 border-slate-600 rounded-md p-2 custom-focus-ring">
+                <!-- Options will be populated by JS -->
+            </select>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+            <button id="startButton" class="col-span-1 sm:col-span-3 w-full bg-gradient-to-r from-teal-500 to-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:opacity-90 transition-opacity duration-300 custom-focus-ring">Start</button>
+            <button id="pauseButton" class="hidden w-full bg-slate-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-slate-500 transition-colors duration-300 custom-focus-ring">Pause</button>
+            <button id="resetButton" class="hidden w-full bg-red-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-500 transition-colors duration-300 custom-focus-ring">Reset</button>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element References ---
+            const inhaleSelect = document.getElementById('inhale');
+            const holdSelect = document.getElementById('hold');
+            const exhaleSelect = document.getElementById('exhale');
+            const durationSelect = document.getElementById('duration');
+            const timerDisplay = document.getElementById('timerDisplay');
+            const startButton = document.getElementById('startButton');
+            const pauseButton = document.getElementById('pauseButton');
+            const resetButton = document.getElementById('resetButton');
+            const canvas = document.getElementById('animationCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // --- State Management ---
+            let totalSeconds = 0;
+            let secondsRemaining = 0;
+            let timerInterval = null;
+            let phaseTimeout = null;
+            let isPaused = false;
+            let isRunning = false;
+            let currentPhase = 'idle'; // 'inhale', 'hold', 'exhale', 'idle'
+            let phaseStartTime = 0;
+
+            // --- Animation Variables ---
+            let animationFrameId;
+            let trianglePoints = [];
+            const ball = { x: 0, y: 0, radius: 0 };
+
+            // --- Audio Synthesis (Tone.js) ---
+            // Using different oscillator types and frequencies for distinct sounds
+            const inhaleSynth = new Tone.Synth({
+                oscillator: { type: 'sine' },
+                envelope: { attack: 0.5, decay: 0.1, sustain: 0.8, release: 0.5 }
+            }).toDestination();
+            
+            const exhaleSynth = new Tone.Synth({
+                oscillator: { type: 'triangle' },
+                envelope: { attack: 0.8, decay: 0.2, sustain: 0.7, release: 1.0 }
+            }).toDestination();
+            
+            // The "hold" phase is silent, so no synth is needed.
+
+            // --- Initialization ---
+
+            /**
+             * Populates a select dropdown with options.
+             * @param {HTMLElement} selectElement - The select element to populate.
+             * @param {number} max - The maximum number for the options.
+             * @param {number} defaultValue - The value to be selected by default.
+             */
+            function populateSelect(selectElement, max, defaultValue) {
+                for (let i = 0; i <= max; i++) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = i;
+                    if (i === defaultValue) {
+                        option.selected = true;
+                    }
+                    selectElement.appendChild(option);
+                }
+            }
+
+            // Populate all dropdowns with initial values
+            populateSelect(inhaleSelect, 60, 4);
+            populateSelect(holdSelect, 60, 7);
+            populateSelect(exhaleSelect, 60, 8);
+            populateSelect(durationSelect, 60, 5); // Default 5 minutes
+
+            // --- Canvas and Animation Setup ---
+
+            /**
+             * Resizes the canvas to fit its container and sets up animation variables.
+             */
+            function setupCanvas() {
+                const size = canvas.clientWidth;
+                canvas.width = size;
+                canvas.height = size;
+
+                const padding = size * 0.15;
+                const sideLength = size - 2 * padding;
+                const triangleHeight = (Math.sqrt(3) / 2) * sideLength;
+
+                const topY = padding;
+                const bottomY = topY + triangleHeight;
+                
+                // Define the three vertices of the triangle
+                trianglePoints = [
+                    { x: size / 2, y: topY }, // Top vertex
+                    { x: padding + sideLength, y: bottomY }, // Bottom-right vertex
+                    { x: padding, y: bottomY }  // Bottom-left vertex
+                ];
+
+                ball.radius = size * 0.03;
+                ball.x = trianglePoints[2].x; // Start at bottom-left
+                ball.y = trianglePoints[2].y;
+
+                draw(); // Initial draw
+            }
+
+            /**
+             * Draws the triangle and the animated ball on the canvas.
+             */
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw the triangle path
+                ctx.beginPath();
+                ctx.moveTo(trianglePoints[0].x, trianglePoints[0].y);
+                ctx.lineTo(trianglePoints[1].x, trianglePoints[1].y);
+                ctx.lineTo(trianglePoints[2].x, trianglePoints[2].y);
+                ctx.closePath();
+                
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                gradient.addColorStop(0, '#2dd4bf'); // teal-400
+                gradient.addColorStop(1, '#3b82f6'); // blue-500
+                
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 4;
+                ctx.stroke();
+
+                // Draw the ball
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#f1f5f9'; // slate-100
+                ctx.fill();
+            }
+
+            /**
+             * The main animation loop, driven by requestAnimationFrame.
+             */
+            function animate() {
+                if (!isRunning || isPaused) {
+                    animationFrameId = requestAnimationFrame(animate);
+                    return;
+                }
+
+                const inhaleTime = parseInt(inhaleSelect.value) * 1000;
+                const holdTime = parseInt(holdSelect.value) * 1000;
+                const exhaleTime = parseInt(exhaleSelect.value) * 1000;
+
+                const elapsed = Date.now() - phaseStartTime;
+                let progress = 0;
+                let startPoint, endPoint;
+
+                // Determine the current path and progress for the ball
+                switch (currentPhase) {
+                    case 'inhale':
+                        progress = Math.min(elapsed / inhaleTime, 1);
+                        startPoint = trianglePoints[2]; // bottom-left
+                        endPoint = trianglePoints[0];   // top
+                        break;
+                    case 'hold':
+                        progress = Math.min(elapsed / holdTime, 1);
+                        startPoint = trianglePoints[0]; // top
+                        endPoint = trianglePoints[1];   // bottom-right
+                        break;
+                    case 'exhale':
+                        progress = Math.min(elapsed / exhaleTime, 1);
+                        startPoint = trianglePoints[1]; // bottom-right
+                        endPoint = trianglePoints[2];   // bottom-left
+                        break;
+                }
+
+                if (startPoint && endPoint) {
+                    // Linear interpolation to find the ball's current position
+                    ball.x = startPoint.x + (endPoint.x - startPoint.x) * progress;
+                    ball.y = startPoint.y + (endPoint.y - startPoint.y) * progress;
+                }
+
+                draw();
+                animationFrameId = requestAnimationFrame(animate);
+            }
+            
+            // --- Timer and Control Logic ---
+
+            /**
+             * Updates the timer display in MM:SS format.
+             */
+            function updateTimerDisplay() {
+                const minutes = Math.floor(secondsRemaining / 60);
+                const seconds = secondsRemaining % 60;
+                timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+            
+            /**
+             * Handles the main countdown timer.
+             */
+            function tick() {
+                if (isPaused) return;
+                secondsRemaining--;
+                updateTimerDisplay();
+                if (secondsRemaining <= 0) {
+                    resetApp();
+                    alert("Session complete! Well done.");
+                }
+            }
+
+            /**
+             * Starts the breathing cycle.
+             */
+            function startBreathingCycle() {
+                if (isPaused || !isRunning) return;
+
+                const inhaleTime = parseInt(inhaleSelect.value) * 1000;
+                const holdTime = parseInt(holdSelect.value) * 1000;
+                const exhaleTime = parseInt(exhaleSelect.value) * 1000;
+
+                // --- INHALE ---
+                currentPhase = 'inhale';
+                phaseStartTime = Date.now();
+                inhaleSynth.triggerAttack("C4", Tone.now());
+                
+                phaseTimeout = setTimeout(() => {
+                    inhaleSynth.triggerRelease();
+                    
+                    // --- HOLD ---
+                    currentPhase = 'hold';
+                    phaseStartTime = Date.now();
+                    // Hold is silent
+                    
+                    phaseTimeout = setTimeout(() => {
+                        
+                        // --- EXHALE ---
+                        currentPhase = 'exhale';
+                        phaseStartTime = Date.now();
+                        exhaleSynth.triggerAttack("G3", Tone.now());
+                        
+                        phaseTimeout = setTimeout(() => {
+                            exhaleSynth.triggerRelease();
+                            // Loop the cycle
+                            if (isRunning) {
+                                startBreathingCycle();
+                            }
+                        }, exhaleTime);
+
+                    }, holdTime);
+
+                }, inhaleTime);
+            }
+
+            /**
+             * Starts the entire session.
+             */
+            function startApp() {
+                // Ensure Tone.js audio context is started by user gesture
+                Tone.start();
+
+                totalSeconds = parseInt(durationSelect.value) * 60;
+                if (totalSeconds <= 0) {
+                    alert("Please select a duration greater than 0.");
+                    return;
+                }
+                secondsRemaining = totalSeconds;
+                isRunning = true;
+                isPaused = false;
+                
+                updateTimerDisplay();
+                timerInterval = setInterval(tick, 1000);
+                startBreathingCycle();
+                
+                // Update UI
+                startButton.classList.add('hidden');
+                pauseButton.classList.remove('hidden');
+                resetButton.classList.remove('hidden');
+                pauseButton.textContent = 'Pause';
+                [inhaleSelect, holdSelect, exhaleSelect, durationSelect].forEach(el => el.disabled = true);
+            }
+            
+            /**
+             * Pauses or resumes the session.
+             */
+            function togglePause() {
+                isPaused = !isPaused;
+                if (isPaused) {
+                    clearInterval(timerInterval);
+                    clearTimeout(phaseTimeout);
+                    inhaleSynth.triggerRelease();
+                    exhaleSynth.triggerRelease();
+                    pauseButton.textContent = 'Resume';
+                } else {
+                    timerInterval = setInterval(tick, 1000);
+                    // Note: Resuming the breathing cycle exactly where it left off is complex.
+                    // For simplicity and a better user experience, we restart the current cycle.
+                    startBreathingCycle(); 
+                    pauseButton.textContent = 'Pause';
+                }
+            }
+
+            /**
+             * Resets the application to its initial state.
+             */
+            function resetApp() {
+                clearInterval(timerInterval);
+                clearTimeout(phaseTimeout);
+                inhaleSynth.triggerRelease();
+                exhaleSynth.triggerRelease();
+                
+                isRunning = false;
+                isPaused = false;
+                currentPhase = 'idle';
+                secondsRemaining = parseInt(durationSelect.value) * 60;
+                
+                updateTimerDisplay();
+                
+                // Reset UI
+                startButton.classList.remove('hidden');
+                pauseButton.classList.add('hidden');
+                resetButton.classList.add('hidden');
+                [inhaleSelect, holdSelect, exhaleSelect, durationSelect].forEach(el => el.disabled = false);
+
+                // Reset animation
+                setupCanvas();
+            }
+
+            // --- Event Listeners ---
+            startButton.addEventListener('click', startApp);
+            pauseButton.addEventListener('click', togglePause);
+            resetButton.addEventListener('click', resetApp);
+            window.addEventListener('resize', setupCanvas);
+            
+            // --- Initial Setup Calls ---
+            setupCanvas();
+            animate(); // Start the animation loop
+            updateTimerDisplay(); // Show initial duration
+            
+            // Set initial timer display based on default duration
+            secondsRemaining = parseInt(durationSelect.value) * 60;
+            updateTimerDisplay();
+
+        });
+    </script>
+</body>
+</html>
