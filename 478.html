@@ -3,52 +3,324 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Breathwork Timer</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Meditative Breathing App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f4f8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .controls {
+            margin-bottom: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+        .controls label {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        .timer {
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+        .triangle-container {
+            position: relative;
+            width: 300px;
+            height: 260px;
+            margin-bottom: 30px;
+        }
+        svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .ball {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #4a90e2;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: left 0.5s linear, top 0.5s linear;
+        }
+        .phase-label {
+            text-align: center;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        button {
+            font-size: 1em;
+            padding: 8px 18px;
+            margin: 0 8px;
+            border: none;
+            border-radius: 5px;
+            background: #4a90e2;
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:disabled {
+            background: #b0c4de;
+            cursor: not-allowed;
+        }
+        button:hover:not(:disabled) {
+            background: #357ab8;
+        }
+    </style>
 </head>
 <body>
-    <div class="app-container">
-        <h1>Breathwork Timer 🧘</h1>
-
-        <div class="animation-container">
-            <svg id="triangle-svg" viewBox="0 0 100 100">
-                <path id="triangle-path" d="M 5,85 L 50,15 L 95,85 Z" />
-                <circle id="moving-ball" r="5" fill="#00ffff" />
-            </svg>
-            <div id="phase-label">Ready</div>
+    <div class="controls">
+        <div>
+            <label for="inhale">Inhale</label>
+            <select id="inhale"></select> sec
         </div>
-
-        <div id="timer-display">00:00</div>
-
-        <div class="controls">
-            <div class="control-group">
-                <label for="inhale-select">Inhale (s)</label>
-                <select id="inhale-select"></select>
-            </div>
-            <div class="control-group">
-                <label for="hold-select">Hold (s)</label>
-                <select id="hold-select"></select>
-            </div>
-            <div class="control-group">
-                <label for="exhale-select">Exhale (s)</label>
-                <select id="exhale-select"></select>
-            </div>
-            <div class="control-group">
-                <label for="duration-select">Duration (min)</label>
-                <select id="duration-select"></select>
-            </div>
+        <div>
+            <label for="hold">Hold</label>
+            <select id="hold"></select> sec
         </div>
-
-        <div class="buttons">
-            <button id="start-pause-btn">Start</button>
-            <button id="stop-btn">Stop</button>
+        <div>
+            <label for="exhale">Exhale</label>
+            <select id="exhale"></select> sec
+        </div>
+        <div>
+            <label for="timer">Timer</label>
+            <select id="timer"></select> min
         </div>
     </div>
+    <div class="timer" id="main-timer">00:00</div>
+    <div class="phase-label" id="phase-label">Ready</div>
+    <div class="triangle-container">
+        <svg width="300" height="260">
+            <polygon points="150,20 280,240 20,240" fill="none" stroke="#333" stroke-width="3" />
+        </svg>
+        <div class="ball" id="ball" style="left: 135px; top: 210px;"></div>
+    </div>
+    <div>
+        <button id="start">Start</button>
+        <button id="pause" disabled>Pause</button>
+        <button id="resume" disabled>Resume</button>
+        <button id="stop" disabled>Stop</button>
+    </div>
+    <audio id="sound-inhale" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b6b7b6b2.mp3"></audio>
+    <audio id="sound-hold" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b6b7b6b3.mp3"></audio>
+    <audio id="sound-exhale" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b6b7b6b4.mp3"></audio>
+    <script>
+        // Populate dropdowns
+        function populateSelect(id, min, max, selected) {
+            const sel = document.getElementById(id);
+            for (let i = min; i <= max; i++) {
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = i;
+                if (i === selected) opt.selected = true;
+                sel.appendChild(opt);
+            }
+        }
+        populateSelect('inhale', 0, 60, 4);
+        populateSelect('hold', 0, 60, 7);
+        populateSelect('exhale', 0, 60, 8);
+        populateSelect('timer', 0, 60, 0);
 
-    <audio id="inhale-sound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_28d0a8697c.mp3" preload="auto"></audio>
-    <audio id="hold-sound" src="https://cdn.pixabay.com/audio/2022/02/22/audio_d563a3501a.mp3" preload="auto"></audio>
-    <audio id="exhale-sound" src="https://cdn.pixabay.com/audio/2022/05/23/audio_0cb68a958a.mp3" preload="auto"></audio>
+        // Triangle points
+        const A = {x: 150, y: 20}; // top
+        const B = {x: 280, y: 240}; // right
+        const C = {x: 20, y: 240}; // left
+        const ball = document.getElementById('ball');
+        const phaseLabel = document.getElementById('phase-label');
+        const mainTimer = document.getElementById('main-timer');
+        const soundInhale = document.getElementById('sound-inhale');
+        const soundHold = document.getElementById('sound-hold');
+        const soundExhale = document.getElementById('sound-exhale');
+        let inhaleSec = 4, holdSec = 7, exhaleSec = 8, totalMin = 0;
+        let timerInterval = null, phaseTimeout = null, totalTimeLeft = 0, running = false, paused = false;
+        let phase = 0, phaseTimeLeft = 0, phaseOrder = [], phaseSounds = [], phaseNames = [];
+        let ballAnimFrame = null, phaseStartTime = 0, phaseDuration = 0;
 
-    <script src="script.js"></script>
+        function updateSettings() {
+            inhaleSec = parseInt(document.getElementById('inhale').value);
+            holdSec = parseInt(document.getElementById('hold').value);
+            exhaleSec = parseInt(document.getElementById('exhale').value);
+            totalMin = parseInt(document.getElementById('timer').value);
+        }
+
+        function formatTime(sec) {
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function setBall(pos) {
+            // pos: 0=start (C), 1=top (A), 2=right (B), 3=left (C)
+            let x, y;
+            if (pos === 0) { x = C.x; y = C.y; }
+            else if (pos === 1) { x = A.x; y = A.y; }
+            else if (pos === 2) { x = B.x; y = B.y; }
+            else { x = C.x; y = C.y; }
+            ball.style.left = (x - 15) + 'px';
+            ball.style.top = (y - 15) + 'px';
+        }
+
+        function animateBall(from, to, duration, onDone) {
+            const start = {...from};
+            const end = {...to};
+            const startTime = performance.now();
+            function step(now) {
+                let elapsed = now - startTime;
+                let t = Math.min(elapsed / (duration * 1000), 1);
+                let x = start.x + (end.x - start.x) * t;
+                let y = start.y + (end.y - start.y) * t;
+                ball.style.left = (x - 15) + 'px';
+                ball.style.top = (y - 15) + 'px';
+                if (t < 1 && running && !paused) {
+                    ballAnimFrame = requestAnimationFrame(step);
+                } else {
+                    if (onDone) onDone();
+                }
+            }
+            ballAnimFrame = requestAnimationFrame(step);
+        }
+
+        function stopBallAnimation() {
+            if (ballAnimFrame) cancelAnimationFrame(ballAnimFrame);
+        }
+
+        function playSound(audio) {
+            audio.currentTime = 0;
+            audio.play();
+        }
+        function stopAllSounds() {
+            [soundInhale, soundHold, soundExhale].forEach(a => { a.pause(); a.currentTime = 0; });
+        }
+
+        function startBreathCycle() {
+            phaseOrder = [];
+            phaseSounds = [];
+            phaseNames = [];
+            if (inhaleSec > 0) { phaseOrder.push([C, A, inhaleSec]); phaseSounds.push(soundInhale); phaseNames.push('Inhale'); }
+            if (holdSec > 0) { phaseOrder.push([A, B, holdSec]); phaseSounds.push(soundHold); phaseNames.push('Hold'); }
+            if (exhaleSec > 0) { phaseOrder.push([B, C, exhaleSec]); phaseSounds.push(soundExhale); phaseNames.push('Exhale'); }
+            phase = 0;
+            nextPhase();
+        }
+
+        function nextPhase() {
+            if (!running || paused) return;
+            if (phase >= phaseOrder.length) phase = 0;
+            const [from, to, duration] = phaseOrder[phase];
+            phaseLabel.textContent = phaseNames[phase];
+            playSound(phaseSounds[phase]);
+            phaseStartTime = Date.now();
+            phaseDuration = duration;
+            animateBall(from, to, duration, () => {
+                if (running && !paused) {
+                    phase++;
+                    nextPhase();
+                }
+            });
+            phaseTimeout = setTimeout(() => {
+                // nothing, handled by animation
+            }, duration * 1000);
+        }
+
+        function stopBreathCycle() {
+            stopBallAnimation();
+            stopAllSounds();
+            if (phaseTimeout) clearTimeout(phaseTimeout);
+            setBall(0);
+            phaseLabel.textContent = 'Ready';
+        }
+
+        function startTimer() {
+            totalTimeLeft = totalMin * 60;
+            mainTimer.textContent = formatTime(totalTimeLeft);
+            timerInterval = setInterval(() => {
+                if (!paused && running) {
+                    totalTimeLeft--;
+                    mainTimer.textContent = formatTime(totalTimeLeft);
+                    if (totalTimeLeft <= 0) {
+                        stopAll();
+                    }
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            mainTimer.textContent = formatTime(totalMin * 60);
+        }
+
+        function stopAll() {
+            running = false;
+            paused = false;
+            stopTimer();
+            stopBreathCycle();
+            document.getElementById('start').disabled = false;
+            document.getElementById('pause').disabled = true;
+            document.getElementById('resume').disabled = true;
+            document.getElementById('stop').disabled = true;
+        }
+
+        document.getElementById('start').onclick = function() {
+            updateSettings();
+            if (inhaleSec === 0 && holdSec === 0 && exhaleSec === 0) return;
+            running = true;
+            paused = false;
+            document.getElementById('start').disabled = true;
+            document.getElementById('pause').disabled = false;
+            document.getElementById('resume').disabled = true;
+            document.getElementById('stop').disabled = false;
+            setBall(0);
+            startBreathCycle();
+            if (totalMin > 0) startTimer();
+            else mainTimer.textContent = '00:00';
+        };
+        document.getElementById('pause').onclick = function() {
+            if (!running || paused) return;
+            paused = true;
+            stopBallAnimation();
+            stopAllSounds();
+            document.getElementById('pause').disabled = true;
+            document.getElementById('resume').disabled = false;
+        };
+        document.getElementById('resume').onclick = function() {
+            if (!running || !paused) return;
+            paused = false;
+            document.getElementById('pause').disabled = false;
+            document.getElementById('resume').disabled = true;
+            // Resume current phase
+            const [from, to, duration] = phaseOrder[phase];
+            // Calculate time left in phase
+            let elapsed = (Date.now() - phaseStartTime) / 1000;
+            let timeLeft = Math.max(phaseDuration - elapsed, 0.1);
+            animateBall(ballPosition(), to, timeLeft, () => {
+                if (running && !paused) {
+                    phase++;
+                    nextPhase();
+                }
+            });
+            playSound(phaseSounds[phase]);
+        };
+        document.getElementById('stop').onclick = function() {
+            stopAll();
+        };
+
+        function ballPosition() {
+            // Get current ball position
+            const left = parseFloat(ball.style.left) + 15;
+            const top = parseFloat(ball.style.top) + 15;
+            return {x: left, y: top};
+        }
+
+        // Set initial ball position
+        setBall(0);
+        mainTimer.textContent = formatTime(0);
+    </script>
 </body>
 </html>
