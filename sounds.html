@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Breathing Timer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+            background-color: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234B5563'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.5em;
+            padding-right: 2.5rem;
+            cursor: pointer;
+        }
+        canvas {
+            background-color: #e2e8f0; /* Light blue-gray for the animation background */
+            border-radius: 10px;
+            margin-bottom: 20px;
+            width: 100%; /* Make canvas responsive */
+            max-width: 440px; /* Limit max width to fit container */
+            height: 150px; /* Fixed height for animation area */
+            display: block; /* Remove extra space below canvas */
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="container space-y-8">
+        <h1 class="text-4xl font-extrabold text-indigo-700 mb-8">Breathing Timer</h1>
+
+        <!-- Timer Display -->
+        <div class="bg-indigo-100 text-indigo-800 text-6xl font-mono p-6 rounded-lg shadow-inner mb-8">
+            <span id="sessionTimerDisplay">00:00</span>
+        </div>
+
+        <!-- Animation Canvas -->
+        <canvas id="breathingAnimationCanvas"></canvas>
+
+        <!-- Breathing Cycle Inputs -->
+        <div class="grid grid-cols-2 gap-6 md:grid-cols-4 mb-8">
+            <div class="flex flex-col items-center">
+                <label for="inhale" class="text-gray-700 text-lg font-semibold mb-2">Inhale (seconds)</label>
+                <select id="inhale" class="form-select block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg">
+                </select>
+            </div>
+            <div class="flex flex-col items-center">
+                <label for="hold1" class="text-gray-700 text-lg font-semibold mb-2">Hold (seconds)</label>
+                <select id="hold1" class="form-select block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg">
+                </select>
+            </div>
+            <div class="flex flex-col items-center">
+                <label for="exhale" class="text-gray-700 text-lg font-semibold mb-2">Exhale (seconds)</label>
+                <select id="exhale" class="form-select block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg">
+                </select>
+            </div>
+            <div class="flex flex-col items-center">
+                <label for="hold2" class="text-gray-700 text-lg font-semibold mb-2">Hold (seconds)</label>
+                <select id="hold2" class="form-select block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg">
+                </select>
+            </div>
+        </div>
+
+        <!-- Session Timer Input -->
+        <div class="mb-8">
+            <label for="sessionMinutes" class="text-gray-700 text-lg font-semibold mb-2 block">Session Duration (minutes)</label>
+            <select id="sessionMinutes" class="form-select block mx-auto py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-lg w-32">
+            </select>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex justify-center space-x-4">
+            <button id="togglePlayPauseBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transform transition duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50">
+                Start
+            </button>
+            <button id="resetBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transform transition duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-50">
+                Reset
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Get references to HTML elements
+        const inhaleSelect = document.getElementById('inhale');
+        const hold1Select = document.getElementById('hold1');
+        const exhaleSelect = document.getElementById('exhale');
+        const hold2Select = document.getElementById('hold2');
+        const sessionMinutesSelect = document.getElementById('sessionMinutes');
+        const sessionTimerDisplay = document.getElementById('sessionTimerDisplay');
+        const togglePlayPauseBtn = document.getElementById('togglePlayPauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+
+        // Animation Canvas elements
+        const canvas = document.getElementById('breathingAnimationCanvas');
+        const ctx = canvas.getContext('2d');
+        const ballRadius = 15;
+        let animationFrameId; // For requestAnimationFrame
+        let phaseStartTime = 0; // audioContext.currentTime when the current phase began
+
+        // Audio Context for sound generation
+        let audioContext;
+        let activeOscillator = null; // To keep track of the currently playing continuous sound's oscillator
+        let activeGainNode = null; // To keep track of the currently playing continuous sound's gain node
+
+        // Timer variables
+        let inhaleDuration = 0;
+        let hold1Duration = 0;
+        let exhaleDuration = 0;
+        let hold2Duration = 0;
+        let sessionMinutes = 0;
+
+        let isTimerRunning = false;
+        let sessionRemainingTime = 0; // in seconds
+        let sessionIntervalId;
+        let currentCyclePhase = 0; // 0: Inhale, 1: Hold1, 2: Exhale, 3: Hold2
+        let cycleTimeoutId; // Stores the setTimeout ID for the current breathing phase
+
+        /**
+         * Populates a select element with options from 0 to max.
+         * @param {HTMLSelectElement} selectElement - The select element to populate.
+         * @param {number} max - The maximum value for the options.
+         * @param {number} [defaultValue=0] - The default selected value.
+         */
+        function populateDropdown(selectElement, max, defaultValue = 0) {
+            for (let i = 0; i <= max; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                selectElement.appendChild(option);
+            }
+            selectElement.value = defaultValue; // Set default
+        }
+
+        /**
+         * Initializes the audio context.
+         */
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        /**
+         * Starts playing a continuous sound. The sound will continue until stopPhaseSound() is called.
+         * Adds a gentle fade-in (attack).
+         * @param {number} frequency - The frequency of the sound in Hz.
+         * @param {string} type - The waveform type ('sine', 'triangle', 'square', 'sawtooth').
+         */
+        function startPhaseSound(frequency, type = 'triangle') { // Changed default type to 'triangle'
+            initAudioContext();
+            stopPhaseSound(); // Ensure any previous continuous sound is stopped
+
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+
+            activeOscillator = audioContext.createOscillator();
+            activeGainNode = audioContext.createGain();
+
+            activeOscillator.type = type;
+            activeOscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+
+            // Gentle attack (fade-in)
+            activeGainNode.gain.setValueAtTime(0, audioContext.currentTime); // Start from 0 volume
+            activeGainNode.gain.linearRampToValueAtTime(0.2, audioContext.currentTime + 0.1); // Ramp up to 0.2 volume over 0.1 seconds
+
+            activeOscillator.connect(activeGainNode);
+            activeGainNode.connect(audioContext.destination);
+
+            activeOscillator.start(audioContext.currentTime);
+        }
+
+        /**
+         * Stops the currently playing continuous phase sound with a gentle fade-out (release).
+         */
+        function stopPhaseSound() {
+            if (activeOscillator && activeGainNode) {
+                try {
+                    // Smooth fade-out (release)
+                    activeGainNode.gain.cancelAndHoldAtTime(audioContext.currentTime); // Cancel any pending ramps
+                    activeGainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.3); // Fade out to near zero over 0.3 seconds
+                    activeOscillator.stop(audioContext.currentTime + 0.3); // Stop oscillator after fade-out
+                } catch (e) {
+                    console.warn("Error stopping oscillator or disconnecting gainNode (already stopped/disconnected?):", e);
+                } finally {
+                    activeOscillator = null;
+                    activeGainNode = null;
+                }
+            }
+        }
+
+        /**
+         * Plays a short, distinct tone (e.g., for completion) with a smoother fade.
+         * @param {number} frequency - The frequency of the sound in Hz.
+         * @param {number} duration - The duration of the sound in seconds.
+         */
+        function playCompletionTone(frequency, duration) {
+            initAudioContext();
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            const tempOscillator = audioContext.createOscillator();
+            const tempGainNode = audioContext.createGain();
+
+            tempOscillator.type = 'sine'; // Sine wave for a clear, soft completion tone
+            tempOscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            tempGainNode.gain.setValueAtTime(0.4, audioContext.currentTime); // Slightly lower volume for completion tone
+
+            tempOscillator.connect(tempGainNode);
+            tempGainNode.connect(audioContext.destination);
+
+            tempOscillator.start(audioContext.currentTime);
+            // Gentle fade out for the completion tone
+            tempGainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + duration + 0.2); // Fade out over duration + 0.2s
+            tempOscillator.stop(audioContext.currentTime + duration + 0.3); // Stop after fade out
+        }
+
+        /**
+         * Plays the sound for the Inhale phase.
+         */
+        function playInhaleSound() {
+            startPhaseSound(523.25, 'triangle'); // C5 note, triangle wave
+        }
+
+        /**
+         * Plays the sound for the first Hold phase.
+         */
+        function playHold1Sound() {
+            startPhaseSound(659.25, 'triangle'); // E5 note, triangle wave
+        }
+
+        /**
+         * Plays the sound for the Exhale phase.
+         */
+        function playExhaleSound() {
+            startPhaseSound(440, 'triangle'); // A4 note, triangle wave
+        }
+
+        /**
+         * Plays the sound for the second Hold phase.
+         */
+        function playHold2Sound() {
+            startPhaseSound(392, 'triangle'); // G4 note, triangle wave
+        }
+
+        /**
+         * Plays a final session complete sound.
+         */
+        function playCompletionSound() {
+            playCompletionTone(784, 1); // G5 note, slightly longer duration for clarity
+        }
+
+        /**
+         * Updates the displayed session timer.
+         */
+        function updateSessionTimerDisplay() {
+            const minutes = Math.floor(sessionRemainingTime / 60);
+            const seconds = sessionRemainingTime % 60;
+            sessionTimerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        /**
+         * Starts the overall session timer.
+         */
+        function startSessionTimer() {
+            sessionIntervalId = setInterval(() => {
+                if (sessionRemainingTime > 0) {
+                    sessionRemainingTime--;
+                    updateSessionTimerDisplay();
+                } else {
+                    stopTimers();
+                    playCompletionSound();
+                    alertMessage("Session Complete!", "Your breathing exercise session has ended. Good job!");
+                }
+            }, 1000);
+        }
+
+        /**
+         * Manages the sequence of breathing phases.
+         */
+        function startBreathingCycle() {
+            if (!isTimerRunning) return;
+
+            // Clear any pending cycle timeouts before starting a new phase
+            clearTimeout(cycleTimeoutId);
+
+            let currentPhaseDurationValue = 0;
+            let currentSoundFunction;
+
+            switch (currentCyclePhase) {
+                case 0: // Inhale
+                    currentPhaseDurationValue = inhaleDuration;
+                    currentSoundFunction = playInhaleSound;
+                    break;
+                case 1: // Hold 1
+                    currentPhaseDurationValue = hold1Duration;
+                    currentSoundFunction = playHold1Sound;
+                    break;
+                case 2: // Exhale
+                    currentPhaseDurationValue = exhaleDuration;
+                    currentSoundFunction = playExhaleSound;
+                    break;
+                case 3: // Hold 2
+                    currentPhaseDurationValue = hold2Duration;
+                    currentSoundFunction = playHold2Sound;
+                    break;
+                default:
+                    console.error("Unknown breathing cycle phase.");
+                    stopPhaseSound(); // Stop any sound if phase is unknown
+                    return;
+            }
+
+            // Set the start time for the current animation phase. Ensure audioContext is initialized.
+            if (audioContext) {
+                phaseStartTime = audioContext.currentTime;
+            }
+
+
+            // Play sound for the current phase if its duration is greater than 0
+            if (currentPhaseDurationValue > 0) {
+                currentSoundFunction();
+            } else {
+                stopPhaseSound(); // If duration is 0, stop any previous sound
+            }
+
+            // Schedule the next phase. Even if current duration is 0, we still need to
+            // advance the cycle. Use a minimum timeout of 50ms to allow audio/animation processing.
+            const nextPhaseDelay = currentPhaseDurationValue > 0 ? currentPhaseDurationValue * 1000 : 50;
+
+            cycleTimeoutId = setTimeout(() => {
+                currentCyclePhase = (currentCyclePhase + 1) % 4; // Move to next phase, loop back after 3
+                if (sessionRemainingTime > 0) { // Only continue if session timer is still running
+                    startBreathingCycle(); // Recurse to start the next phase
+                } else {
+                    stopPhaseSound(); // Stop sound if session ends in between phases
+                }
+            }, nextPhaseDelay);
+        }
+
+        /**
+         * Stops all timers, sounds, and animation.
+         */
+        function stopTimers() {
+            isTimerRunning = false;
+            clearInterval(sessionIntervalId);
+            clearTimeout(cycleTimeoutId);
+            stopPhaseSound(); // Stop the continuous phase sound
+            cancelAnimationFrame(animationFrameId); // Stop animation
+            if (audioContext && audioContext.state === 'running') {
+                audioContext.suspend(); // Pause the audio context
+            }
+            togglePlayPauseBtn.textContent = 'Start';
+        }
+
+        /**
+         * Resumes all timers, sounds, and animation.
+         */
+        function resumeTimers() {
+            isTimerRunning = true;
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume(); // Resume the audio context
+            }
+            // Reset phaseStartTime here to correctly calculate elapsed time after a pause. Ensure audioContext is initialized.
+            if (audioContext) {
+                phaseStartTime = audioContext.currentTime;
+            }
+            startSessionTimer();
+            startBreathingCycle();
+            animationFrameId = requestAnimationFrame(drawBallAnimation); // Resume animation
+            togglePlayPauseBtn.textContent = 'Pause';
+        }
+
+        /**
+         * Handles the click event for the Start/Pause/Resume button.
+         */
+        function handleTogglePlayPause() {
+            // Ensure audioContext is initialized before starting any operations that rely on it
+            initAudioContext(); // Initialize audio context here
+
+            if (isTimerRunning) {
+                stopTimers();
+            } else {
+                // First time starting or resuming from pause
+                if (sessionRemainingTime === 0) { // If session timer is at 0, initialize it from selected minutes
+                    sessionRemainingTime = parseInt(sessionMinutesSelect.value) * 60;
+                    if (sessionRemainingTime === 0) {
+                        alertMessage("Error", "Please select a session duration greater than 0.");
+                        return;
+                    }
+                    // Reset breathing cycle to start from Inhale
+                    currentCyclePhase = 0;
+                }
+                resumeTimers();
+            }
+        }
+
+        /**
+         * Handles the click event for the Reset button.
+         */
+        function handleReset() {
+            stopTimers();
+            inhaleSelect.value = 0;
+            hold1Select.value = 0;
+            exhaleSelect.value = 0;
+            hold2Select.value = 0;
+            sessionMinutesSelect.value = 0;
+            inhaleDuration = 0;
+            hold1Duration = 0;
+            exhaleDuration = 0;
+            hold2Duration = 0;
+            sessionMinutes = 0;
+            sessionRemainingTime = 0;
+            updateSessionTimerDisplay();
+            togglePlayPauseBtn.textContent = 'Start';
+            currentCyclePhase = 0; // Reset breathing cycle phase
+            // Reset ball position on canvas
+            drawBreathingPath(); // Clear and redraw the path
+            drawBallAtInitialPosition(); // Draw ball at start
+        }
+
+        /**
+         * Displays a custom alert message.
+         * @param {string} title - The title of the alert.
+         * @param {string} message - The message content.
+         */
+        function alertMessage(title, message) {
+            const modalId = 'customAlertModal';
+            let modal = document.getElementById(modalId);
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = modalId;
+                modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 transition-opacity duration-300 opacity-0';
+                modal.innerHTML = `
+                    <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full transform transition-transform duration-300 scale-95">
+                        <h3 class="text-xl font-bold mb-4 text-gray-800" id="alertTitle"></h3>
+                        <p class="text-gray-700 mb-6" id="alertMessage"></p>
+                        <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50" id="alertCloseBtn">
+                            OK
+                        </button>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+
+                document.getElementById('alertCloseBtn').onclick = () => {
+                    modal.classList.remove('opacity-100', 'scale-100');
+                    modal.classList.add('opacity-0', 'scale-95');
+                    setTimeout(() => modal.style.display = 'none', 300); // Hide after transition
+                };
+            }
+
+            document.getElementById('alertTitle').textContent = title;
+            document.getElementById('alertMessage').textContent = message;
+            modal.style.display = 'flex';
+            setTimeout(() => { // Trigger transition
+                modal.classList.remove('opacity-0', 'scale-95');
+                modal.classList.add('opacity-100', 'scale-100');
+            }, 10);
+        }
+
+        /**
+         * Draws the static breathing path on the canvas with straight lines for hills/valleys.
+         */
+        function drawBreathingPath() {
+            if (!ctx) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const phaseWidth = canvas.width / 4;
+            const paddingFromEdge = 10;
+            const bottomLineY = canvas.height - ballRadius - paddingFromEdge;
+            const topLineY = ballRadius + paddingFromEdge;
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#9CA3AF'; // Gray-400
+            ctx.lineWidth = 3;
+
+            // Start at the beginning of the first phase (bottom left)
+            ctx.moveTo(0, bottomLineY);
+
+            // Inhale: Straight line from bottom-left to top-right of the segment
+            ctx.lineTo(phaseWidth, topLineY);
+
+            // Hold 1: Flat line at the top
+            ctx.lineTo(2 * phaseWidth, topLineY);
+
+            // Exhale: Straight line from top-left to bottom-right of the segment
+            ctx.lineTo(3 * phaseWidth, bottomLineY);
+
+            // Hold 2: Flat line at the bottom
+            ctx.lineTo(canvas.width, bottomLineY);
+
+            ctx.stroke(); // Draw the path
+        }
+
+        /**
+         * Draws the ball at the calculated position.
+         * @param {number} x - The x-coordinate of the ball's center.
+         * @param {number} y - The y-coordinate of the ball's center.
+         */
+        function drawBall(x, y) {
+            ctx.beginPath();
+            ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#6366F1'; // Indigo 500
+            ctx.fill();
+        }
+
+        /**
+         * Draws the ball at its initial position (start of the first phase).
+         */
+        function drawBallAtInitialPosition() {
+             const paddingFromEdge = 10;
+             const bottomLineY = canvas.height - ballRadius - paddingFromEdge;
+             drawBall(ballRadius, bottomLineY);
+        }
+
+
+        /**
+         * Animates the ball along the breathing path using linear interpolation for slopes.
+         */
+        function drawBallAnimation() {
+            animationFrameId = requestAnimationFrame(drawBallAnimation);
+
+            // Only update ball position if the timer is running and audio context is active
+            if (!isTimerRunning || !audioContext || audioContext.state !== 'running') {
+                return; // Ball position remains static if not running
+            }
+
+            drawBreathingPath(); // Redraw path (and clear previous ball) on each frame
+
+            const phaseWidth = canvas.width / 4;
+            const paddingFromEdge = 10;
+            const bottomLineY = canvas.height - ballRadius - paddingFromEdge;
+            const topLineY = ballRadius + paddingFromEdge;
+
+            // Determine current phase duration
+            let currentPhaseDurationValue = 0;
+            switch (currentCyclePhase) {
+                case 0: currentPhaseDurationValue = inhaleDuration; break;
+                case 1: currentPhaseDurationValue = hold1Duration; break;
+                case 2: currentPhaseDurationValue = exhaleDuration; break;
+                case 3: currentPhaseDurationValue = hold2Duration; break;
+            }
+
+            let progressInPhase = 0;
+            if (currentPhaseDurationValue > 0 && audioContext) {
+                const elapsedTimeInPhase = audioContext.currentTime - phaseStartTime;
+                progressInPhase = Math.min(1, elapsedTimeInPhase / currentPhaseDurationValue);
+            } else {
+                // If phase duration is 0, instantly complete the phase for animation
+                progressInPhase = 1;
+            }
+
+            let ballX, ballY;
+            const currentSegmentStartX = currentCyclePhase * phaseWidth; // X start of the current phase's segment
+
+            if (currentCyclePhase === 0) { // Inhale: Ball moves up a straight line hill
+                ballX = currentSegmentStartX + (progressInPhase * phaseWidth);
+                ballY = bottomLineY + (topLineY - bottomLineY) * progressInPhase; // Linear interpolation
+            } else if (currentCyclePhase === 1) { // Hold 1: Ball moves on a level plateau (top line)
+                ballX = currentSegmentStartX + (progressInPhase * phaseWidth);
+                ballY = topLineY;
+            } else if (currentCyclePhase === 2) { // Exhale: Ball moves down a straight line hill
+                ballX = currentSegmentStartX + (progressInPhase * phaseWidth);
+                ballY = topLineY + (bottomLineY - topLineY) * progressInPhase; // Linear interpolation
+            } else if (currentCyclePhase === 3) { // Hold 2: Ball moves on a flat line (bottom line)
+                ballX = currentSegmentStartX + (progressInPhase * phaseWidth);
+                ballY = bottomLineY;
+            }
+            // Draw the ball at its calculated position
+            drawBall(ballX, ballY);
+        }
+
+        // Event Listeners
+        window.onload = function() {
+            // Set canvas size dynamically to fill its max-width, while keeping fixed height
+            const containerWidth = canvas.parentElement.offsetWidth;
+            canvas.width = Math.min(containerWidth, 440); // Max width from CSS
+            // Note: Canvas height is fixed at 150px in CSS for consistent animation space
+
+            // Populate dropdowns
+            populateDropdown(inhaleSelect, 60, 4);
+            populateDropdown(hold1Select, 60, 4);
+            populateDropdown(exhaleSelect, 60, 6);
+            populateDropdown(hold2Select, 60, 2);
+            populateDropdown(sessionMinutesSelect, 60, 5); // Default to 5 minutes
+
+            // Initial load of values
+            inhaleDuration = parseInt(inhaleSelect.value);
+            hold1Duration = parseInt(hold1Select.value);
+            exhaleDuration = parseInt(exhaleSelect.value);
+            hold2Duration = parseInt(hold2Select.value);
+            sessionMinutes = parseInt(sessionMinutesSelect.value);
+            sessionRemainingTime = sessionMinutes * 60; // Initialize session time in seconds
+            updateSessionTimerDisplay(); // Display initial time
+
+            // Add event listeners for dropdown changes
+            inhaleSelect.addEventListener('change', (e) => inhaleDuration = parseInt(e.target.value));
+            hold1Select.addEventListener('change', (e) => hold1Duration = parseInt(e.target.value));
+            exhaleSelect.addEventListener('change', (e) => exhaleDuration = parseInt(e.target.value));
+            hold2Select.addEventListener('change', (e) => hold2Duration = parseInt(e.target.value));
+            sessionMinutesSelect.addEventListener('change', (e) => {
+                sessionMinutes = parseInt(e.target.value);
+                if (!isTimerRunning) { // Only update if not running to avoid resetting active timer
+                    sessionRemainingTime = sessionMinutes * 60;
+                    updateSessionTimerDisplay();
+                }
+            });
+
+            // Button event listeners
+            togglePlayPauseBtn.addEventListener('click', handleTogglePlayPause);
+            resetBtn.addEventListener('click', handleReset);
+
+            // Start the animation loop when the page loads to draw the initial path and ball
+            drawBreathingPath();
+            drawBallAtInitialPosition();
+            animationFrameId = requestAnimationFrame(drawBallAnimation);
+        };
+    </script>
+</body>
+</html>
