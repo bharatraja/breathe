@@ -76,6 +76,11 @@
     </style>
 </head>
 <body>
+
+    <p id="countdown" style="font-size: 2em; color: #333; margin-bottom: 20px;"></p>
+    <div id="visualizer-container" style="display:flex; justify-content:center; align-items:center; height:80px; margin-bottom:10px;">
+        <div id="visualizer-circle" style="width:60px; height:60px; border-radius:50%; background:radial-gradient(circle at 60% 40%, #aee7ff 60%, #4fc3f7 100%); opacity:0.7; transform:scale(1);"></div>
+    </div>
     <h1>Nature Sound Player</h1>
     <select id="soundSelector">
         <option value="bell">Bell</option>
@@ -102,14 +107,39 @@
     <video id="wakelockVideo" playsinline muted loop style="display:none;width:0;height:0;"></video>
 
     <p id="status" style="color: #666; margin-top: 20px;"></p>
-    <p id="countdown" style="font-size: 1.5em; color: #333; margin-top: 10px;"></p>
 
     <script>
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const bellSound = document.getElementById('bellSound');
-        const statusElement = document.getElementById('status');
-        const soundSelector = document.getElementById('soundSelector');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const bellSound = document.getElementById('bellSound');
+    const statusElement = document.getElementById('status');
+    const soundSelector = document.getElementById('soundSelector');
+    const visualizerCircle = document.getElementById('visualizer-circle');
+    let visualizerId = null;
+        // Animation for visualizer
+        function startVisualizer() {
+            let scale = 1;
+            let growing = true;
+            if (visualizerId) cancelAnimationFrame(visualizerId);
+            function animate() {
+                if (growing) {
+                    scale += 0.02;
+                    if (scale >= 1.25) growing = false;
+                } else {
+                    scale -= 0.02;
+                    if (scale <= 1) growing = true;
+                }
+                visualizerCircle.style.transform = `scale(${scale})`;
+                visualizerId = requestAnimationFrame(animate);
+            }
+            animate();
+        }
+
+        function stopVisualizer() {
+            if (visualizerId) cancelAnimationFrame(visualizerId);
+            visualizerId = null;
+            visualizerCircle.style.transform = 'scale(1)';
+        }
 
         // Preload the audio
         bellSound.load();
@@ -164,6 +194,7 @@
                         statusElement.textContent = `Stopped after timer.`;
                         clearInterval(countdownId);
                         countdownElement.textContent = '';
+                        stopVisualizer();
                     }
                 }
             }, 1000);
@@ -183,6 +214,7 @@
                     startBtn.disabled = true;
                     stopBtn.disabled = false;
                     statusElement.textContent = 'Playing...';
+                    startVisualizer();
                     if (remainingSeconds > 0) {
                         startCountdown();
                     } else {
@@ -195,6 +227,7 @@
                     statusElement.textContent = 'Error playing sound. Please click again or check browser permissions.';
                     startBtn.disabled = false;
                     stopBtn.disabled = true;
+                    stopVisualizer();
                 });
         });
 
@@ -205,6 +238,7 @@
             stopBtn.disabled = true;
             statusElement.textContent = 'Paused';
             clearInterval(countdownId);
+            stopVisualizer();
             // Do not reset remainingSeconds or countdownElement
         });
 
@@ -216,10 +250,10 @@
 
         const soundMap = {
             bell: "bell.mp3",
-            rain: "https://www.soundjay.com/nature/sounds/rain-01.mp3",
-            waterfall: "https://orangefreesounds.com/wp-content/uploads/2014/10/Waterfall-sound.mp3",
-            birds: "https://orangefreesounds.com/wp-content/uploads/2014/08/Birds-singing-in-the-forest.mp3",
-            ocean: "https://www.soundjay.com/nature/sounds/ocean-wave-4.mp3"
+            rain: "rain.mp3",
+            waterfall: "waterfall.mp3",
+            birds: "birds.mp3",
+            ocean: "ocean.mp3"
         };
 
         // Update audio source based on selector
