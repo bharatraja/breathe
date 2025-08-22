@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
     <title>Nature Sound Player</title>
     <style>
         body {
@@ -14,19 +14,30 @@
             margin: 0;
             font-family: Arial, sans-serif;
             background-color: #f0f0f0;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        h1 {
+            font-size: 2em;
+            text-align: center;
         }
         .button-container {
             display: flex;
-            gap: 20px;
+            flex-direction: column;
+            gap: 10px;
             margin-top: 20px;
+            width: 100%;
+            max-width: 300px;
         }
         button {
             padding: 15px 30px;
-            font-size: 18px;
+            font-size: 1.2em;
             cursor: pointer;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             transition: background-color 0.3s;
+            min-width: 120px;
+            min-height: 44px;
         }
         #startBtn {
             background-color: #4CAF50;
@@ -43,13 +54,24 @@
             background-color: #cccccc;
             cursor: not-allowed;
         }
-        #soundSelector {
+        #soundSelector, #timerSelector {
             padding: 10px;
-            font-size: 16px;
-            border-radius: 5px;
+            font-size: 1.2em;
+            border-radius: 8px;
             margin-bottom: 20px;
             width: 200px;
             border: 1px solid #ccc;
+            min-width: 120px;
+            min-height: 44px;
+        }
+        @media (max-width: 600px) {
+            h1 { font-size: 1.3em; }
+            select, button { font-size: 1em; min-width: 100px; min-height: 40px; }
+            .button-container { max-width: 100%; }
+        }
+        input, select, button {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-appearance: none;
         }
     </style>
 </head>
@@ -62,6 +84,8 @@
         <option value="birds">Birds</option>
         <option value="ocean">Ocean</option>
     </select>
+    <label for="timerSelector">Play for:</label>
+    <select id="timerSelector"></select> minutes
     <div class="button-container">
         <button id="startBtn">Start</button>
         <button id="stopBtn" disabled>Stop</button>
@@ -72,7 +96,13 @@
         Your browser does not support the audio element.
     </audio>
 
+    <div id="ios-tip" style="display:none; color:#b77; font-size:1em; margin:10px 0; text-align:center;">
+        On iPhone, please keep the screen awake for continuous sound. If playback stops, disable Auto-Lock in Settings &gt; Display &amp; Brightness &gt; Auto-Lock.
+    </div>
+    <video id="wakelockVideo" playsinline muted loop style="display:none;width:0;height:0;"></video>
+
     <p id="status" style="color: #666; margin-top: 20px;"></p>
+    <p id="countdown" style="font-size: 1.5em; color: #333; margin-top: 10px;"></p>
 
     <script>
         const startBtn = document.getElementById('startBtn');
@@ -94,13 +124,71 @@
             startBtn.disabled = false;
         });
 
+        // Timer dropdown population
+        const timerSelector = document.getElementById('timerSelector');
+        for (let i = 0; i <= 60; i++) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = i;
+            if (i === 15) opt.selected = true;
+            timerSelector.appendChild(opt);
+        }
+
+        let timerId = null;
+        let countdownId = null;
+        let remainingSeconds = 0;
+        let isPaused = false;
+        const countdownElement = document.getElementById('countdown');
+
+        function updateCountdownDisplay() {
+            if (remainingSeconds > 0) {
+                const mins = Math.floor(remainingSeconds / 60);
+                const secs = remainingSeconds % 60;
+                countdownElement.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            } else {
+                countdownElement.textContent = '';
+            }
+        }
+
+        function startCountdown() {
+            if (countdownId) clearInterval(countdownId);
+            countdownId = setInterval(() => {
+                if (!isPaused && remainingSeconds > 0) {
+                    remainingSeconds--;
+                    updateCountdownDisplay();
+                    if (remainingSeconds === 0) {
+                        bellSound.pause();
+                        bellSound.currentTime = 0;
+                        startBtn.disabled = false;
+                        stopBtn.disabled = true;
+                        statusElement.textContent = `Stopped after timer.`;
+                        clearInterval(countdownId);
+                        countdownElement.textContent = '';
+                    }
+                }
+            }, 1000);
+        }
+
         startBtn.addEventListener('click', () => {
+            if (remainingSeconds === 0 || !isPaused) {
+                // New session or after timer expired
+                const mins = parseInt(timerSelector.value, 10);
+                remainingSeconds = mins > 0 ? mins * 60 : 0;
+                updateCountdownDisplay();
+            }
+            isPaused = false;
             bellSound.loop = true;
             bellSound.play()
                 .then(() => {
                     startBtn.disabled = true;
                     stopBtn.disabled = false;
                     statusElement.textContent = 'Playing...';
+                    if (remainingSeconds > 0) {
+                        startCountdown();
+                    } else {
+                        clearInterval(countdownId);
+                        countdownElement.textContent = '';
+                    }
                 })
                 .catch(error => {
                     console.error('Error playing sound:', error);
@@ -112,10 +200,12 @@
 
         stopBtn.addEventListener('click', () => {
             bellSound.pause();
-            bellSound.currentTime = 0;
+            isPaused = true;
             startBtn.disabled = false;
             stopBtn.disabled = true;
-            statusElement.textContent = 'Stopped';
+            statusElement.textContent = 'Paused';
+            clearInterval(countdownId);
+            // Do not reset remainingSeconds or countdownElement
         });
 
         // Handle audio loading errors with multiple fallbacks
@@ -139,6 +229,20 @@
             bellSound.load();
             statusElement.textContent = 'Sound source updated. Ready to play.';
         });
+
+        // iOS detection and workaround
+        function isIOS() {
+            return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        }
+        if (isIOS()) {
+            document.getElementById('ios-tip').style.display = 'block';
+            // Use a silent video to help keep the device awake
+            const wakelockVideo = document.getElementById('wakelockVideo');
+            wakelockVideo.src = "data:video/mp4;base64,AAAAHGZ0eXBNNAACAgAAAB9tb292AAAAbG1kYXQAAAAA"; // 1-frame silent mp4
+            function playWakeLock() { wakelockVideo.play().catch(()=>{}); }
+            startBtn.addEventListener('click', playWakeLock);
+            stopBtn.addEventListener('click', ()=>wakelockVideo.pause());
+        }
     </script>
 </body>
 </html>
