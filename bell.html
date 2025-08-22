@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tibetan Bell App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    select, button {
+      margin: 10px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    audio {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Tibetan Bell App</h1>
+  <label for="duration">Choose duration (minutes):</label>
+  <select id="duration">
+    <!-- Options for 1 to 60 minutes -->
+    <script>
+      for (let i = 1; i <= 60; i++) {
+        document.write(`<option value="${i}" ${i === 15 ? 'selected' : ''}>${i}</option>`);
+      }
+    </script>
+  </select>
+  <br>
+  <label for="sound">Choose sound:</label>
+  <select id="sound">
+    <option value="bell" selected>Tibetan Bell</option>
+    <option value="waterfall">Waterfall</option>
+  </select>
+  <br>
+  <button id="start">Start</button>
+  <button id="pause">Pause</button>
+  <button id="reset">Reset</button>
+  <audio id="bell-sound" src="https://www.soundjay.com/button/beep-07.mp3"></audio>
+  <audio id="waterfall-sound" src="https://www.soundjay.com/nature/waterfall-1.mp3"></audio>
+  <script>
+    const startButton = document.getElementById('start');
+    const pauseButton = document.getElementById('pause');
+    const resetButton = document.getElementById('reset');
+    const durationSelect = document.getElementById('duration');
+    const soundSelect = document.getElementById('sound');
+    const bellSound = document.getElementById('bell-sound');
+    const waterfallSound = document.getElementById('waterfall-sound');
+
+    let timer = null;
+    let remainingTime = 0;
+
+    function playSound() {
+      const selectedSound = soundSelect.value;
+      stopSound(); // Ensure no other sound is playing
+      if (selectedSound === 'bell') {
+        bellSound.loop = true;
+        bellSound.play().catch((error) => {
+          console.error('Audio playback failed:', error);
+          alert('Audio playback failed. Please check browser permissions or try another browser.');
+        });
+      } else if (selectedSound === 'waterfall') {
+        waterfallSound.loop = true;
+        waterfallSound.play().catch((error) => {
+          console.error('Audio playback failed:', error);
+          alert('Audio playback failed. Please check browser permissions or try another browser.');
+        });
+      }
+    }
+
+    function stopSound() {
+      bellSound.pause();
+      bellSound.currentTime = 0;
+      waterfallSound.pause();
+      waterfallSound.currentTime = 0;
+    }
+
+    startButton.addEventListener('click', () => {
+      if (timer) return; // Prevent multiple timers
+      const duration = parseInt(durationSelect.value, 10) * 60; // Convert minutes to seconds
+      remainingTime = remainingTime || duration;
+      playSound();
+      timer = setInterval(() => {
+        remainingTime--;
+        if (remainingTime <= 0) {
+          clearInterval(timer);
+          timer = null;
+          stopSound();
+          alert('Time is up!');
+        }
+      }, 1000);
+    });
+
+    pauseButton.addEventListener('click', () => {
+      clearInterval(timer);
+      timer = null;
+      stopSound();
+    });
+
+    resetButton.addEventListener('click', () => {
+      clearInterval(timer);
+      timer = null;
+      remainingTime = 0;
+      stopSound();
+    });
+  </script>
+</body>
+</html>
