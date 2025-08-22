@@ -1,116 +1,144 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tibetan Bell App</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 20px;
-    }
-    h1 {
-      color: #333;
-    }
-    select, button {
-      margin: 10px;
-      padding: 10px;
-      font-size: 16px;
-    }
-    audio {
-      display: none;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nature Sound Player</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+        .button-container {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        #startBtn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #stopBtn {
+            background-color: #f44336;
+            color: white;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #soundSelector {
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            width: 200px;
+            border: 1px solid #ccc;
+        }
+    </style>
 </head>
 <body>
-  <h1>Tibetan Bell App</h1>
-  <label for="duration">Choose duration (minutes):</label>
-  <select id="duration">
-    <!-- Options for 1 to 60 minutes -->
+    <h1>Nature Sound Player</h1>
+    <select id="soundSelector">
+        <option value="bell">Bell</option>
+        <option value="rain">Rainfall</option>
+        <option value="waterfall">Waterfall</option>
+        <option value="birds">Birds</option>
+        <option value="ocean">Ocean</option>
+    </select>
+    <div class="button-container">
+        <button id="startBtn">Start</button>
+        <button id="stopBtn" disabled>Stop</button>
+    </div>
+    
+    <audio id="bellSound">
+        <source id="audioSourceMp3" src="bell.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
+    <p id="status" style="color: #666; margin-top: 20px;"></p>
+
     <script>
-      for (let i = 1; i <= 60; i++) {
-        document.write(`<option value="${i}" ${i === 15 ? 'selected' : ''}>${i}</option>`);
-      }
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const bellSound = document.getElementById('bellSound');
+        const statusElement = document.getElementById('status');
+        const soundSelector = document.getElementById('soundSelector');
+
+        // Preload the audio
+        bellSound.load();
+
+        // Add loading indicator
+        bellSound.addEventListener('loadstart', () => {
+            statusElement.textContent = 'Loading sound...';
+        });
+
+        bellSound.addEventListener('canplaythrough', () => {
+            statusElement.textContent = 'Sound ready to play';
+            startBtn.disabled = false;
+        });
+
+        startBtn.addEventListener('click', () => {
+            bellSound.loop = true;
+            bellSound.play()
+                .then(() => {
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    statusElement.textContent = 'Playing...';
+                })
+                .catch(error => {
+                    console.error('Error playing sound:', error);
+                    statusElement.textContent = 'Error playing sound. Please click again or check browser permissions.';
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                });
+        });
+
+        stopBtn.addEventListener('click', () => {
+            bellSound.pause();
+            bellSound.currentTime = 0;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusElement.textContent = 'Stopped';
+        });
+
+        // Handle audio loading errors with multiple fallbacks
+        bellSound.addEventListener('error', (e) => {
+            console.error('Error loading audio:', e);
+            statusElement.textContent = 'Failed to load audio file. Please try again later.';
+        });
+
+        const soundMap = {
+            bell: "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3",
+            rain: "https://www.soundjay.com/nature/sounds/rain-01.mp3",
+            waterfall: "https://orangefreesounds.com/wp-content/uploads/2014/10/Waterfall-sound.mp3",
+            birds: "https://orangefreesounds.com/wp-content/uploads/2014/08/Birds-singing-in-the-forest.mp3",
+            ocean: "https://www.soundjay.com/nature/sounds/ocean-wave-4.mp3"
+        };
+
+        // Update audio source based on selector
+        soundSelector.addEventListener('change', (event) => {
+            const selected = event.target.value;
+            document.getElementById('audioSourceMp3').src = soundMap[selected];
+            bellSound.load();
+            statusElement.textContent = 'Sound source updated. Ready to play.';
+        });
     </script>
-  </select>
-  <br>
-  <label for="sound">Choose sound:</label>
-  <select id="sound">
-    <option value="bell" selected>Tibetan Bell</option>
-    <option value="waterfall">Waterfall</option>
-  </select>
-  <br>
-  <button id="start">Start</button>
-  <button id="pause">Pause</button>
-  <button id="reset">Reset</button>
-  <audio id="bell-sound" src="https://www.soundjay.com/button/beep-07.mp3"></audio>
-  <audio id="waterfall-sound" src="https://www.soundjay.com/nature/waterfall-1.mp3"></audio>
-  <script>
-    const startButton = document.getElementById('start');
-    const pauseButton = document.getElementById('pause');
-    const resetButton = document.getElementById('reset');
-    const durationSelect = document.getElementById('duration');
-    const soundSelect = document.getElementById('sound');
-    const bellSound = document.getElementById('bell-sound');
-    const waterfallSound = document.getElementById('waterfall-sound');
-
-    let timer = null;
-    let remainingTime = 0;
-
-    function playSound() {
-      const selectedSound = soundSelect.value;
-      stopSound(); // Ensure no other sound is playing
-      if (selectedSound === 'bell') {
-        bellSound.loop = true;
-        bellSound.play().catch((error) => {
-          console.error('Audio playback failed:', error);
-          alert('Audio playback failed. Please check browser permissions or try another browser.');
-        });
-      } else if (selectedSound === 'waterfall') {
-        waterfallSound.loop = true;
-        waterfallSound.play().catch((error) => {
-          console.error('Audio playback failed:', error);
-          alert('Audio playback failed. Please check browser permissions or try another browser.');
-        });
-      }
-    }
-
-    function stopSound() {
-      bellSound.pause();
-      bellSound.currentTime = 0;
-      waterfallSound.pause();
-      waterfallSound.currentTime = 0;
-    }
-
-    startButton.addEventListener('click', () => {
-      if (timer) return; // Prevent multiple timers
-      const duration = parseInt(durationSelect.value, 10) * 60; // Convert minutes to seconds
-      remainingTime = remainingTime || duration;
-      playSound();
-      timer = setInterval(() => {
-        remainingTime--;
-        if (remainingTime <= 0) {
-          clearInterval(timer);
-          timer = null;
-          stopSound();
-          alert('Time is up!');
-        }
-      }, 1000);
-    });
-
-    pauseButton.addEventListener('click', () => {
-      clearInterval(timer);
-      timer = null;
-      stopSound();
-    });
-
-    resetButton.addEventListener('click', () => {
-      clearInterval(timer);
-      timer = null;
-      remainingTime = 0;
-      stopSound();
-    });
-  </script>
 </body>
 </html>
