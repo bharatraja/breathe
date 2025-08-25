@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wim Hof Breathing Practice</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #e3f0ff 0%, #f0f4f8 100%);
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .main-container {
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 4px 24px rgba(80,120,180,0.10), 0 1.5px 6px rgba(80,120,180,0.08);
+      padding: 24px 16px 20px 16px;
+      max-width: 400px;
+      width: 95vw;
+      margin: 18px auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      font-size: 1.6em;
+      margin-bottom: 10px;
+      color: #357ab8;
+      text-align: center;
+    }
+    .desc {
+      font-size: 1.05em;
+      color: #444;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+    .settings {
+      margin-bottom: 18px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .settings label {
+      font-weight: 500;
+      margin-bottom: 2px;
+      font-size: 1.08em;
+    }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    select, input[type="number"] {
+      font-size: 1.08em;
+      border-radius: 6px;
+      border: 1px solid #b0c4de;
+      padding: 6px 10px;
+      background: #f7fbff;
+      min-width: 60px;
+    }
+    .timer {
+      font-size: 2.2em;
+      margin-bottom: 12px;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+      color: #2a3a4a;
+      text-align: center;
+    }
+    .phase-label {
+      text-align: center;
+      font-size: 1.18em;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #4a90e2;
+      letter-spacing: 0.01em;
+    }
+    .button-group {
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+      width: 100%;
+      margin-bottom: 10px;
+      justify-content: center;
+    }
+    button {
+      font-size: 1.08em;
+      padding: 13px 0;
+      border: none;
+      border-radius: 7px;
+      background: #4a90e2;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s;
+      width: 100%;
+      min-width: 80px;
+      box-shadow: 0 1.5px 6px rgba(80,120,180,0.08);
+    }
+    button:disabled {
+      background: #b0c4de;
+      cursor: not-allowed;
+    }
+    button:hover:not(:disabled) {
+      background: #357ab8;
+    }
+    .cycle-indicator {
+      margin-bottom: 10px;
+      color: #357ab8;
+      font-size: 1.1em;
+      text-align: center;
+    }
+    .breath-visual {
+      width: 100%;
+      height: 60px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .breath-circle {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4a90e2 60%, #aee7ff 100%);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.13);
+      transition: transform 0.7s cubic-bezier(.4,2,.6,1);
+      border: 2.5px solid #fff;
+    }
+    @media (min-width: 500px) {
+      .main-container {
+        max-width: 520px;
+        padding: 32px 32px 28px 32px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <h1>Wim Hof Breathing</h1>
+    <div class="desc">
+      30-40 deep breaths, then exhale and hold. Repeat for several rounds.<br>
+      <b>Inhale fully, exhale passively.</b>
+    </div>
+    <div class="settings">
+      <div class="settings-row">
+        <label for="breaths">Breaths per round</label>
+  <input id="breaths" type="number" min="1" max="60" value="30">
+      </div>
+      <div class="settings-row">
+        <label for="rounds">Rounds</label>
+        <input id="rounds" type="number" min="1" max="10" value="3">
+      </div>
+      <div class="settings-row">
+        <label for="hold">Hold after exhale (sec, optional)</label>
+        <input id="hold" type="number" min="0" max="600" value="60">
+      </div>
+      <div class="settings-row">
+        <label for="recovery">Recovery breath (sec)</label>
+        <input id="recovery" type="number" min="5" max="60" value="15">
+      </div>
+    </div>
+  <div class="cycle-indicator" id="cycle-indicator">Round 1 of 3</div>
+  <div class="breath-count" id="breath-count"></div>
+    <div class="phase-label" id="phase-label">Ready</div>
+    <div class="timer" id="timer">00:00</div>
+    <div class="breath-visual"><div class="breath-circle" id="breath-circle"></div></div>
+    <div class="button-group">
+      <button id="start">Start</button>
+      <button id="pause" disabled>Pause</button>
+      <button id="resume" disabled>Resume</button>
+      <button id="stop" disabled>Stop</button>
+    </div>
+    <audio id="inhale-audio" src="bell.mp3" preload="auto"></audio>
+    <audio id="exhale-audio" src="ocean.mp3" preload="auto"></audio>
+    <!-- iOS silent audio workaround -->
+    <audio id="silent-audio" loop style="display:none">
+      <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" type="audio/wav">
+    </audio>
+</div>
+<!-- iOS silent audio workaround: place at end of body and use hidden attribute -->
+<audio id="silent-audio" loop hidden>
+  <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" type="audio/wav">
+</audio>
+
+  </div>
+  <script>
+
+    // iOS wake lock workaround: play silent audio in background
+    const silentAudio = document.getElementById('silent-audio');
+    function requestWakeLock() {
+      // Only needed for iOS, but harmless elsewhere
+      if (silentAudio && silentAudio.paused) {
+        try { silentAudio.play(); } catch (e) {}
+      }
+    }
+    function releaseWakeLock() {
+      if (silentAudio && !silentAudio.paused) {
+        try { silentAudio.pause(); silentAudio.currentTime = 0; } catch (e) {}
+      }
+    }
+
+    // Wim Hof breathing logic
+    const breathsInput = document.getElementById('breaths');
+    const roundsInput = document.getElementById('rounds');
+    const holdInput = document.getElementById('hold');
+    const startBtn = document.getElementById('start');
+    const pauseBtn = document.getElementById('pause');
+    const resumeBtn = document.getElementById('resume');
+    const stopBtn = document.getElementById('stop');
+    const timerEl = document.getElementById('timer');
+    const phaseLabel = document.getElementById('phase-label');
+    const cycleIndicator = document.getElementById('cycle-indicator');
+    const breathCircle = document.getElementById('breath-circle');
+
+  let breaths = 30, rounds = 3, holdSec = 0, recoverySec = 15;
+    let currentRound = 1, currentBreath = 0;
+    let running = false, paused = false, phase = 'ready';
+    let timer = null, phaseStart = 0, phaseElapsed = 0, holdTimer = null, holdStart = 0;
+
+    const recoveryInput = document.getElementById('recovery');
+    const breathCountEl = document.getElementById('breath-count');
+    function updateSettings() {
+      breaths = Math.max(1, Math.min(60, parseInt(breathsInput.value)));
+      rounds = Math.max(1, Math.min(10, parseInt(roundsInput.value)));
+      holdSec = Math.max(0, Math.min(600, parseInt(holdInput.value)));
+      recoverySec = Math.max(5, Math.min(60, parseInt(recoveryInput.value)));
+    }
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    const inhaleAudio = document.getElementById('inhale-audio');
+    const exhaleAudio = document.getElementById('exhale-audio');
+    function playSound(audio) {
+      if (!audio) return;
+      audio.currentTime = 0;
+      audio.play();
+    }
+    function speakCue(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 1.05;
+        utter.pitch = 1.0;
+        utter.volume = 1.0;
+        window.speechSynthesis.speak(utter);
+      }
+    }
+    function setPhase(p) {
+      phase = p;
+      let label =
+        p === 'inhale' ? 'Inhale deeply' :
+        p === 'exhale' ? 'Exhale passively' :
+        p === 'hold' ? 'Hold (after exhale)' :
+        p === 'recover' ? 'Recovery breath' :
+        'Ready';
+      phaseLabel.textContent = label;
+      breathCircle.style.transform =
+        p === 'inhale' ? 'scale(1.25)' :
+        p === 'exhale' ? 'scale(0.85)' :
+        'scale(1)';
+      if (p === 'inhale') {
+        playSound(inhaleAudio);
+      } else if (p === 'exhale') {
+        playSound(exhaleAudio);
+      } else if (p === 'hold') {
+        speakCue('Begin hold');
+      } else if (p === 'recover') {
+        speakCue('Breathe again');
+      }
+    }
+    function setCycleIndicator() {
+      cycleIndicator.textContent = `Round ${currentRound} of ${rounds}`;
+    }
+    function resetUI() {
+      setPhase('ready');
+      timerEl.textContent = '00:00';
+      cycleIndicator.textContent = `Round 1 of ${rounds}`;
+      breathCircle.style.transform = 'scale(1)';
+      breathCountEl.textContent = '';
+    }
+    function startBreathing() {
+      running = true;
+      paused = false;
+      currentRound = 1;
+      setCycleIndicator();
+      startBtn.disabled = true;
+      pauseBtn.disabled = false;
+      resumeBtn.disabled = true;
+      stopBtn.disabled = false;
+      requestWakeLock();
+      nextRound();
+    }
+    function nextRound() {
+      if (!running) return;
+      setCycleIndicator();
+      currentBreath = 0;
+      doBreath();
+    }
+    function doBreath() {
+      if (!running || paused) return;
+      if (currentBreath >= breaths) {
+        setPhase('exhale');
+        timerEl.textContent = '00:00';
+        setTimeout(() => {
+          setPhase('hold');
+          if (holdSec > 0) {
+            let holdLeft = holdSec;
+            timerEl.textContent = formatTime(holdLeft);
+            holdTimer = setInterval(() => {
+              if (!running || paused) return;
+              holdLeft--;
+              timerEl.textContent = formatTime(holdLeft);
+              if (holdLeft <= 0) {
+                clearInterval(holdTimer);
+                setPhase('recover');
+                // Recovery breath countdown
+                let recLeft = recoverySec;
+                timerEl.textContent = formatTime(recLeft);
+                let recTimer = setInterval(() => {
+                  if (!running || paused) return;
+                  recLeft--;
+                  timerEl.textContent = formatTime(recLeft);
+                  if (recLeft <= 0) {
+                    clearInterval(recTimer);
+                    finishRound();
+                  }
+                }, 1000);
+              }
+            }, 1000);
+          } else {
+            setTimeout(() => {
+              setPhase('recover');
+              // Recovery breath countdown
+              let recLeft = recoverySec;
+              timerEl.textContent = formatTime(recLeft);
+              let recTimer = setInterval(() => {
+                if (!running || paused) return;
+                recLeft--;
+                timerEl.textContent = formatTime(recLeft);
+                if (recLeft <= 0) {
+                  clearInterval(recTimer);
+                  finishRound();
+                }
+              }, 1000);
+            }, 2000);
+          }
+        }, 1200);
+        return;
+      }
+      setPhase('inhale');
+      breathCountEl.textContent = `Breath ${currentBreath + 1} of ${breaths}`;
+      timerEl.textContent = '';
+      setTimeout(() => {
+        setPhase('exhale');
+        setTimeout(() => {
+          currentBreath++;
+          doBreath();
+        }, 700);
+      }, 1100);
+    }
+    function finishRound() {
+      if (!running) return;
+      if (currentRound >= rounds) {
+        setPhase('ready');
+        timerEl.textContent = 'Done!';
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        resumeBtn.disabled = true;
+        stopBtn.disabled = true;
+        return;
+      }
+      currentRound++;
+      setTimeout(() => {
+        nextRound();
+      }, 1200);
+    }
+    function pauseBreathing() {
+      paused = true;
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = false;
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      if (holdTimer) clearInterval(holdTimer);
+    }
+    function resumeBreathing() {
+      paused = false;
+      pauseBtn.disabled = false;
+      resumeBtn.disabled = true;
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      if (phase === 'hold' && holdSec > 0) {
+        // Resume hold timer
+        let holdLeft = parseInt(timerEl.textContent.split(':').reduce((m,s) => m*60+parseInt(s),0));
+        holdTimer = setInterval(() => {
+          if (!running || paused) return;
+          holdLeft--;
+          timerEl.textContent = formatTime(holdLeft);
+          if (holdLeft <= 0) {
+            clearInterval(holdTimer);
+            setPhase('recover');
+            setTimeout(() => {
+              finishRound();
+            }, 1500);
+          }
+        }, 1000);
+      } else {
+        doBreath();
+      }
+    }
+    function stopBreathing() {
+      running = false;
+      paused = false;
+      startBtn.disabled = false;
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = true;
+      stopBtn.disabled = true;
+      if (holdTimer) clearInterval(holdTimer);
+      releaseWakeLock();
+      resetUI();
+    }
+    startBtn.onclick = function() {
+      updateSettings();
+      resetUI();
+      startBreathing();
+    };
+    pauseBtn.onclick = function() {
+      pauseBreathing();
+    };
+    resumeBtn.onclick = function() {
+      resumeBreathing();
+    };
+    stopBtn.onclick = function() {
+      stopBreathing();
+    };
+    // Initialize
+    resetUI();
+  </script>
+</body>
+</html>
